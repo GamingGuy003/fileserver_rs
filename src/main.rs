@@ -8,7 +8,7 @@ use http_serv::{http_server::server::HttpServer, HttpData, HttpRequest, HttpResp
 fn main() {
     HttpServer::new(
         "127.0.0.1".to_owned(),
-        "8080".to_owned(),
+        "8081".to_owned(),
         Vec::new(),
         Some(Box::new(|request: HttpRequest| {
             println!("Got {:#?}", request);
