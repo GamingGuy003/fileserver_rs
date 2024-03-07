@@ -32,7 +32,7 @@ dependencies = [
 [[package]]
 name = "http_serv"
 version = "0.4.0"
-source = "git+https://github.com/GamingGuy003/http_serv#d761aa21b3428c6f977ad678a2904d77341b50d3"
+source = "git+https://github.com/GamingGuy003/http_serv#187f7c77ad7f931322913ddd96e6494b1836aace"
 dependencies = [
  "http_base",
 ]

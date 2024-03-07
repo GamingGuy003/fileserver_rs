@@ -19,7 +19,7 @@ fn main() {
     )
     .expect("Failed to create webserver")
     .get(
-        "/:uri".to_owned(),
+        "/:uri*".to_owned(),
         Box::new(|request: HttpRequest| {
             let filename = match request.get_route_param(":uri*".to_owned()) {
                 Some(filename) => filename,
