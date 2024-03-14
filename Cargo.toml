@@ -6,5 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+cali = { git = "https://github.com/GamingGuy003/cali" }
 http_serv = { git = "https://github.com/GamingGuy003/http_serv" }
-#http_base = { git = "https://github.com/GamingGuy003/http_base" }
+log = "0.4.21"
+pretty_env_logger = "0.5.0"

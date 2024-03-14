@@ -1,64 +1,107 @@
-use std::{
-    fs::File,
-    io::{BufRead, BufReader},
-};
+use std::{fs, path::Path};
 
+use cali::parser::Parser;
 use http_serv::{http_server::server::HttpServer, HttpData, HttpRequest, HttpResponse, HttpStatus};
+use log::{debug, info, warn};
 
 fn main() {
+    pretty_env_logger::formatted_timed_builder()
+        .filter_level(log::LevelFilter::Info)
+        .parse_default_env()
+        .init();
+
+    let mut parser = Parser::new()
+        .add_arg(
+            "p",
+            "port",
+            "Sets the server port. Default: 8080",
+            true,
+            true,
+        )
+        .add_arg(
+            "a",
+            "addr",
+            "Sets the bound address. Default: 127.0.0.1",
+            true,
+            true,
+        );
+
+    parser.parse().expect("Failed to parse arguments");
+
+    let addr = if let Some(pa) = parser.get_parsed_argument_long("addr") {
+        info!("Trying to use supplied value for addr...");
+        pa.value.unwrap_or("127.0.0.1".to_owned())
+    } else {
+        info!("Using default value 127.0.0.1 for addr...");
+        "127.0.0.1".to_owned()
+    };
+
+    let port = if let Some(pa) = parser.get_parsed_argument_long("port") {
+        info!("Trying to use supplied value for port...");
+        pa.value.unwrap_or("8080".to_owned())
+    } else {
+        info!("Using default value 8080 for port...");
+        "8080".to_owned()
+    };
+
+    info!("Starting server on {addr}:{port}...");
+
     HttpServer::new(
-        "127.0.0.1".to_owned(),
-        "8081".to_owned(),
+        addr,
+        port,
         Vec::new(),
         Some(Box::new(|request: HttpRequest| {
-            println!("Got {:#?}", request);
-            let mut resp = HttpResponse::default();
-            resp.data = Some(HttpData::new(format!("{:#?}", request).as_bytes().to_vec()));
-            resp
+            debug!("Got unimplemented request {:?}", request);
+            HttpResponse {
+                data: Some(HttpData::new(
+                    format!("Not implemented. Request was:<br>{:#?}", request)
+                        .as_bytes()
+                        .to_vec(),
+                )),
+                ..Default::default()
+            }
         })),
     )
     .expect("Failed to create webserver")
     .get(
         "/:uri*".to_owned(),
         Box::new(|request: HttpRequest| {
+            info!(
+                "Handling {:?} {}",
+                request.http_headers.method, request.http_headers.path
+            );
             let filename = match request.get_route_param(":uri*".to_owned()) {
                 Some(filename) => filename,
                 None => {
-                    return HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, None)
+                    warn!("Filename not set");
+                    return HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, None);
                 }
             };
-            let hugo = match File::open(&filename) {
-                Ok(file) => file,
+
+            let path = Path::new(&filename);
+            
+            let content = match fs::read(path) {
+                Ok(content) => content,
                 Err(err) => {
+                    warn!("Could not read file {}: {}", path.display(), err);
                     return HttpResponse::new(
                         "1.1".to_owned(),
                         HttpStatus::NotFound,
                         None,
                         Some(HttpData::new(err.to_string().as_bytes().to_vec())),
-                    )
+                    );
                 }
             };
 
-            let bufreader = BufReader::new(hugo);
-            let mut lines = Vec::new();
-            bufreader
-                .lines()
-                .map_while(Result::ok)
-                .for_each(|line| lines.push(line));
+            
 
-            let mut resp = HttpResponse::default();
-            println!("Sending {} with length {}", filename, lines.len());
-            resp.data = Some(HttpData::new(
-                lines.join("\n").as_bytes().to_vec(),
-            ));
-            resp
+            debug!("Sending {} with length {}", path.display(), content.len());
+            HttpResponse {
+                data: Some(HttpData::new(content)),
+                ..Default::default()
+            }
         }),
     )
     .run_loop()
     .expect("Failed to handle connection");
-    /*
-    .get("/:uri".to_owned(), Box::new(|request| {
-
-    }));
-    */
 }
