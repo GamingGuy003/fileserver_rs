@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{fs::File, path::Path};
 
 use cali::parser::Parser;
 use http_serv::{http_server::server::HttpServer, HttpData, HttpRequest, HttpResponse, HttpStatus};
@@ -50,10 +50,10 @@ fn main() {
         addr,
         port,
         Vec::new(),
-        Some(Box::new(|request: HttpRequest| {
+        Some(Box::new(|request: &HttpRequest| {
             debug!("Got unimplemented request {:?}", request);
             HttpResponse {
-                data: Some(HttpData::new(
+                data: Some(HttpData::Bytes(
                     format!("Not implemented. Request was:<br>{:#?}", request)
                         .as_bytes()
                         .to_vec(),
@@ -65,7 +65,7 @@ fn main() {
     .expect("Failed to create webserver")
     .get(
         "/:uri*".to_owned(),
-        Box::new(|request: HttpRequest| {
+        Box::new(|request: &HttpRequest| {
             info!(
                 "Handling {:?} {}",
                 request.http_headers.method, request.http_headers.path
@@ -79,25 +79,24 @@ fn main() {
             };
 
             let path = Path::new(&filename);
-            
-            let content = match fs::read(path) {
-                Ok(content) => content,
+            let file = match File::open(&filename) {
+                Ok(file) => file,
                 Err(err) => {
-                    warn!("Could not read file {}: {}", path.display(), err);
-                    return HttpResponse::new(
-                        "1.1".to_owned(),
-                        HttpStatus::NotFound,
-                        None,
-                        Some(HttpData::new(err.to_string().as_bytes().to_vec())),
-                    );
+                    warn!("Could not open file: {err}");
+                    return HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, None);
+                }
+            };
+            let len = match file.metadata() {
+                Ok(metadata) => metadata.len() as usize,
+                Err(err) => {
+                    warn!("Could not get metadat: {err}");
+                    return HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, None);
                 }
             };
 
-            
-
-            debug!("Sending {} with length {}", path.display(), content.len());
+            debug!("Sending {} with length {}", path.display(), len);
             HttpResponse {
-                data: Some(HttpData::new(content)),
+                data: Some(HttpData::Stream((Box::new(file), len))),
                 ..Default::default()
             }
         }),

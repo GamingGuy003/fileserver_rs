@@ -20,6 +20,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dyn-clone"
+version = "1.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d6ef0072f8a535281e4876be788938b528e9a1d43900b82c2569af7da799125"
+
+[[package]]
 name = "env_logger"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -63,15 +69,16 @@ checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 [[package]]
 name = "http_base"
 version = "0.1.0"
-source = "git+https://github.com/GamingGuy003/http_base.git?branch=main#37b2228136186dc0eb9d27c7eebb97fcff462433"
+source = "git+https://github.com/GamingGuy003/http_base.git?branch=streamdata#59b4b0ad36373f6af6fff2f3f8e2e53b1595c8b2"
 dependencies = [
+ "dyn-clone",
  "num_enum",
 ]
 
 [[package]]
 name = "http_serv"
 version = "0.4.0"
-source = "git+https://github.com/GamingGuy003/http_serv#81761af449ee3be663a32f7e36e98ccc8938c3b5"
+source = "git+https://github.com/GamingGuy003/http_serv#6918715c92ab9bc76d6fea30cc196f6c074635ca"
 dependencies = [
  "http_base",
 ]
