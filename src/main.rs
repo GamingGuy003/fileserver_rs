@@ -132,7 +132,7 @@ pub fn handle_folder(path: PathBuf) -> HttpResponse {
     let mut entries = vec![format!("<a href=\"/{}\">..</a>", path.parent().unwrap_or(Path::new(".")).to_string_lossy())];
 
     entries.append(&mut files.map_while(Result::ok).map(|entry| {
-        format!("<a href=\"{}\">{}</a>", path.join(entry.path()).display(), entry.file_name().to_string_lossy())
+        format!("<a href=\"/{}\">{}</a>", path.join(entry.path().file_name().unwrap_or_default()).display(), entry.file_name().to_string_lossy())
     }).collect::<Vec<String>>());
     
     debug!("Sending {} folder entries...", entries.len());

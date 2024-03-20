@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "rust-fileserver",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
