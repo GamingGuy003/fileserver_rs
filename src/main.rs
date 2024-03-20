@@ -1,4 +1,4 @@
-use std::{fs::File, path::Path};
+use std::{fs::{self, File}, path::{Path, PathBuf}};
 
 use cali::parser::Parser;
 use http_serv::{http_server::server::HttpServer, HttpData, HttpRequest, HttpResponse, HttpStatus};
@@ -70,37 +70,74 @@ fn main() {
                 "Handling {:?} {}",
                 request.http_headers.method, request.http_headers.path
             );
-            let filename = match request.get_route_param(":uri*".to_owned()) {
-                Some(filename) => filename,
+            let uri = match request.get_route_param(":uri*".to_owned()) {
+                Some(uri) => uri,
                 None => {
-                    warn!("Filename not set");
+                    warn!("URI not set");
                     return HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, None);
                 }
             };
 
-            let path = Path::new(&filename);
-            let file = match File::open(&filename) {
-                Ok(file) => file,
-                Err(err) => {
-                    warn!("Could not open file: {err}");
-                    return HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, None);
-                }
-            };
-            let len = match file.metadata() {
-                Ok(metadata) => metadata.len() as usize,
-                Err(err) => {
-                    warn!("Could not get metadat: {err}");
-                    return HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, None);
-                }
-            };
-
-            debug!("Sending {} with length {}", path.display(), len);
-            HttpResponse {
-                data: Some(HttpData::Stream((Box::new(file), len))),
-                ..Default::default()
-            }
+            let path = Path::new(&uri);
+            debug!("Trying to handle path {}", path.display());
+            match path {
+                _ if path.is_dir() => handle_folder(path.to_path_buf()),
+                _ if path.is_file() => handle_file(path.to_path_buf()),
+                _ => {
+                    warn!("File {} not found", path.display());
+                    HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, Some(HttpData::Bytes(
+                    format!("File not found. Request was:<br>{:#?}", request)
+                        .as_bytes()
+                        .to_vec(),
+                )))}
+            }       
         }),
     )
     .run_loop()
     .expect("Failed to handle connection");
+}
+
+pub fn handle_file(path: PathBuf) -> HttpResponse {
+    let file = match File::open(&path) {
+        Ok(file) => file,
+        Err(err) => {
+            warn!("Could not open file: {err}");
+            return HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, None);
+        }
+    };
+    let len = match file.metadata() {
+        Ok(metadata) => metadata.len() as usize,
+        Err(err) => {
+            warn!("Could not get metadat: {err}");
+            return HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, None);
+        }
+    };
+
+    debug!("Sending file {} with length {}", path.display(), len);
+    HttpResponse {
+        data: Some(HttpData::Stream((Box::new(file), len))),
+        ..Default::default()
+    }
+}
+
+pub fn handle_folder(path: PathBuf) -> HttpResponse {
+    let files = match fs::read_dir(&path) {
+        Ok(file) => file,
+        Err(err) => {
+            warn!("Could not open file: {err}");
+            return HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, None);
+        }
+    };
+
+    let mut entries = vec![format!("<a href=\"/{}\">..</a>", path.parent().unwrap_or(Path::new(".")).to_string_lossy())];
+
+    entries.append(&mut files.map_while(Result::ok).map(|entry| {
+        format!("<a href=\"{}\">{}</a>", path.join(entry.path()).display(), entry.file_name().to_string_lossy())
+    }).collect::<Vec<String>>());
+    
+    debug!("Sending {} folder entries...", entries.len());
+    HttpResponse {
+        data: Some(HttpData::Bytes(entries.join("<br>").as_bytes().to_vec())),
+        ..Default::default()
+    }
 }
