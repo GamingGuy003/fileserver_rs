@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 cali = { git = "https://github.com/GamingGuy003/cali" }
-http_serv = { git = "https://github.com/GamingGuy003/http_serv" }
+http_serv = { git = "https://github.com/GamingGuy003/http_serv", features = [ "threading", "log" ] }
 log = "0.4.21"
 pretty_env_logger = "0.5.0"

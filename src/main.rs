@@ -1,4 +1,7 @@
-use std::{fs::{self, File}, path::{Path, PathBuf}};
+use std::{
+    fs::{self, File},
+    path::{Path, PathBuf},
+};
 
 use cali::parser::Parser;
 use http_serv::{http_server::server::HttpServer, HttpData, HttpRequest, HttpResponse, HttpStatus};
@@ -24,6 +27,13 @@ fn main() {
             "Sets the bound address. Default: 127.0.0.1",
             true,
             true,
+        )
+        .add_arg(
+            "r",
+            "root",
+            "Sets the root folder for files. Default: .",
+            true,
+            true,
         );
 
     parser.parse().expect("Failed to parse arguments");
@@ -44,11 +54,20 @@ fn main() {
         "8080".to_owned()
     };
 
-    info!("Starting server on {addr}:{port}...");
+    let root = if let Some(pa) = parser.get_parsed_argument_long("root") {
+        info!("Trying to use supplied value for root...");
+        pa.value.unwrap_or(".".to_owned())
+    } else {
+        info!("Using default root folder where instance has been launched...");
+        ".".to_owned()
+    };
+
+    info!("Starting server on {addr}:{port}, serving '{}'...", root);
 
     HttpServer::new(
         addr,
         port,
+        4,
         Vec::new(),
         Some(Box::new(|request: &HttpRequest| {
             debug!("Got unimplemented request {:?}", request);
@@ -65,11 +84,7 @@ fn main() {
     .expect("Failed to create webserver")
     .get(
         "/:uri*".to_owned(),
-        Box::new(|request: &HttpRequest| {
-            info!(
-                "Handling {:?} {}",
-                request.http_headers.method, request.http_headers.path
-            );
+        Box::new(move |request: &HttpRequest| {
             let uri = match request.get_route_param(":uri*".to_owned()) {
                 Some(uri) => uri,
                 None => {
@@ -77,27 +92,40 @@ fn main() {
                     return HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, None);
                 }
             };
+            let root_path = Path::new(&root);
+            let uri_path = Path::new(&uri);
+            let rooted_path = root_path.join(uri_path);
 
-            let path = Path::new(&uri);
-            debug!("Trying to handle path {}", path.display());
-            match path {
-                _ if path.is_dir() => handle_folder(path.to_path_buf()),
-                _ if path.is_file() => handle_file(path.to_path_buf()),
+            debug!("Trying to handle path {}", uri_path.display());
+            match rooted_path {
+                _ if rooted_path.is_dir() => {
+                    handle_folder(uri_path.to_path_buf(), root_path.to_path_buf())
+                }
+                _ if rooted_path.is_file() => {
+                    handle_file(uri_path.to_path_buf(), root_path.to_path_buf())
+                }
                 _ => {
-                    warn!("File {} not found", path.display());
-                    HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, Some(HttpData::Bytes(
-                    format!("File not found. Request was:<br>{:#?}", request)
-                        .as_bytes()
-                        .to_vec(),
-                )))}
-            }       
+                    warn!("File {} not found", rooted_path.display());
+                    HttpResponse::new(
+                        "1.1".to_owned(),
+                        HttpStatus::NotFound,
+                        None,
+                        Some(HttpData::Bytes(
+                            format!("File not found. Request was:<br>{:#?}", request)
+                                .as_bytes()
+                                .to_vec(),
+                        )),
+                    )
+                }
+            }
         }),
     )
     .run_loop()
     .expect("Failed to handle connection");
 }
 
-pub fn handle_file(path: PathBuf) -> HttpResponse {
+pub fn handle_file(path: PathBuf, root: PathBuf) -> HttpResponse {
+    let path = root.join(path);
     let file = match File::open(&path) {
         Ok(file) => file,
         Err(err) => {
@@ -120,8 +148,9 @@ pub fn handle_file(path: PathBuf) -> HttpResponse {
     }
 }
 
-pub fn handle_folder(path: PathBuf) -> HttpResponse {
-    let files = match fs::read_dir(&path) {
+pub fn handle_folder(path: PathBuf, root: PathBuf) -> HttpResponse {
+    let rooted_path = root.join(&path);
+    let files = match fs::read_dir(&rooted_path) {
         Ok(file) => file,
         Err(err) => {
             warn!("Could not open file: {err}");
@@ -129,12 +158,34 @@ pub fn handle_folder(path: PathBuf) -> HttpResponse {
         }
     };
 
-    let mut entries = vec![format!("<a href=\"/{}\">..</a>", path.parent().unwrap_or(Path::new(".")).to_string_lossy())];
+    let href_up = format!(
+        "/{}",
+        path.parent().unwrap_or(Path::new(".")).to_string_lossy()
+    )
+    .replace("//", "/");
 
-    entries.append(&mut files.map_while(Result::ok).map(|entry| {
-        format!("<a href=\"/{}\">{}</a>", path.join(entry.path().file_name().unwrap_or_default()).display(), entry.file_name().to_string_lossy())
-    }).collect::<Vec<String>>());
-    
+    let mut entries = vec![format!("<a href=\"{href_up}\">..</a>",)];
+
+    entries.append(
+        &mut files
+            .map_while(Result::ok)
+            .map(|entry| {
+                let binding = entry
+                    .path();
+                let entry_string = binding
+                    .strip_prefix(&root)
+                    .unwrap_or(Path::new("."))
+                    .display();
+                let href_file = format!("/{entry_string}",).replace("//", "/");
+                format!(
+                    "<a href=\"{href_file}\">{}</a>",
+                    entry.file_name().to_string_lossy()
+                )
+            })
+            .collect::<Vec<String>>(),
+    );
+    entries.sort();
+
     debug!("Sending {} folder entries...", entries.len());
     HttpResponse {
         data: Some(HttpData::Bytes(entries.join("<br>").as_bytes().to_vec())),
