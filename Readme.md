@@ -8,24 +8,24 @@ You can either run the server using cargo, or by first building it and then runn
 
 #### Setting port
 
-```
+```bash
 fileserver-rs -p 8080 # sets the port to 8080. If no value is specified, 8080 will be assumed The long version is --port
 ```
 
 #### Setting interface
 
-```
+```bash
 fileserver-rs -a 0.0.0.0 # sets the bound interface to 0.0.0.0. If no value is specified, 127.0.0.1 will be used. The long version is --addr
 ```
 
 #### Setting root folder
 
-```
+```bash
 fileserver-rs -r /home/user/test # sets the root folder to /home/user/test. If no value is specified, '.' will be used. The long version is --root
 ```
 
 #### Help
 
-```
+```bash
 fileserver-rs -h # this will output a short description of all commands. The long version is --help
 ```
