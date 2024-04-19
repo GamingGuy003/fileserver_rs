@@ -84,13 +84,14 @@ fn main() {
     .get(
         "/:uri*".to_owned(),
         Box::new(move |request: &HttpRequest| {
-            let uri = match request.get_route_param(":uri*".to_owned()) {
+            let mut uri = match request.get_route_param(":uri*".to_owned()) {
                 Some(uri) => uri,
                 None => {
                     log::warn!("URI not set");
                     return HttpResponse::new("1.1".to_owned(), HttpStatus::NotFound, None, None);
                 }
             };
+            uri = uri.replace("%20", " ");
             let root_path = Path::new(&root);
             let uri_path = Path::new(&uri);
             let rooted_path = root_path.join(uri_path);
